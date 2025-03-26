@@ -16,8 +16,8 @@ st.title("📊 E-Commerce Performance Dashboard")
 @st.cache_data(ttl=300)  # Cache 5 menit
 def load_data():
     # Load data
-    orders = pd.read_csv("C:/Users/POLYBEST/Desktop/streamlit/orders_dataset.csv")
-    customers = pd.read_csv("C:/Users/POLYBEST/Desktop/streamlit/customers_dataset.csv")
+    orders = pd.read_csv("orders_dataset.csv")
+    customers = pd.read_csv("customers_dataset.csv")
     
     # Preprocessing
     orders['order_purchase_timestamp'] = pd.to_datetime(orders['order_purchase_timestamp'])
