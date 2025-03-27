@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import os
+import gdown
 
 # Konfigurasi awal
 st.set_page_config(layout="wide")
@@ -15,9 +16,17 @@ st.title("📊 E-Commerce Performance Dashboard")
 # Fungsi Load Data dengan caching
 @st.cache_data(ttl=300)  # Cache 5 menit
 def load_data():
+    # File IDs
+    orders_id = "1ol9KRyJu243nwJq09fVoDM9g6LWyh1Tu"
+    customers_id = "1i0Uue3Q9ipumrkgDuI4IAEgYSOsuAFJr"
+    
+    # Download files
+    orders_path = gdown.download(f"https://drive.google.com/uc?id={orders_id}", quiet=True)
+    customers_path = gdown.download(f"https://drive.google.com/uc?id={customers_id}", quiet=True)
+    
     # Load data
-    orders = pd.read_csv("orders_dataset.csv")
-    customers = pd.read_csv("customers_dataset.csv")
+    orders = pd.read_csv(orders_path)
+    customers = pd.read_csv(customers_path)
     
     # Preprocessing
     orders['order_purchase_timestamp'] = pd.to_datetime(orders['order_purchase_timestamp'])
