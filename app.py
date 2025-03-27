@@ -16,24 +16,27 @@ st.title("📊 E-Commerce Performance Dashboard")
 # Fungsi Load Data dengan caching
 @st.cache_data(ttl=300)  # Cache 5 menit
 def load_data():
-    # File IDs
+    # Ganti dengan ID file Google Drive Anda
     orders_id = "1ol9KRyJu243nwJq09fVoDM9g6LWyh1Tu"
     customers_id = "1i0Uue3Q9ipumrkgDuI4IAEgYSOsuAFJr"
     
-    # Download files
-    orders_path = gdown.download(f"https://drive.google.com/uc?id={orders_id}", quiet=True)
-    customers_path = gdown.download(f"https://drive.google.com/uc?id={customers_id}", quiet=True)
+    # Format URL unduhan langsung
+    orders_url = f"https://drive.google.com/uc?export=download&id={orders_id}"
+    customers_url = f"https://drive.google.com/uc?export=download&id={customers_id}"
     
-    # Load data
-    orders = pd.read_csv(orders_path)
-    customers = pd.read_csv(customers_path)
-    
-    # Preprocessing
-    orders['order_purchase_timestamp'] = pd.to_datetime(orders['order_purchase_timestamp'])
-    orders['year'] = orders['order_purchase_timestamp'].dt.year
-    orders['month'] = orders['order_purchase_timestamp'].dt.month
-    
-    return orders, customers
+    try:
+        orders = pd.read_csv(orders_url)
+        customers = pd.read_csv(customers_url)
+        
+        # Preprocessing
+        orders['order_purchase_timestamp'] = pd.to_datetime(orders['order_purchase_timestamp'])
+        orders['year'] = orders['order_purchase_timestamp'].dt.year
+        orders['month'] = orders['order_purchase_timestamp'].dt.month
+        
+        return orders, customers
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return pd.DataFrame(), pd.DataFrame()
 
 orders_df, customers_df = load_data()
 
