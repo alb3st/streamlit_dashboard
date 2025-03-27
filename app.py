@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import os
-import gdown
 
 # Konfigurasi awal
 st.set_page_config(layout="wide")
