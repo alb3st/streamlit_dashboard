@@ -123,88 +123,120 @@ else:
                 st.metric("Bulan Puncak", peak_month)
 
     # Tab 2: Analisis Kota
-    with tab2:
-        st.header(f"Distribusi Pesanan per Kota ({year_range[0]}-{year_range[1]})")
+with tab2:
+    st.header(f"Distribusi Pesanan per Kota ({year_range[0]}-{year_range[1]})")
+    
+    # Gabungkan data
+    delivered_orders = orders_df[
+        (orders_df["order_status"] == "delivered") &
+        (orders_df["year"].between(year_range[0], year_range[1]))
+    ].copy()
+    
+    all_orders = orders_df[
+        orders_df["year"].between(year_range[0], year_range[1])
+    ].copy()
+    
+    orders_customers_delivered = pd.merge(
+        delivered_orders[["order_id", "customer_id"]],
+        customers_df[["customer_id", "customer_city", "customer_state"]],
+        on="customer_id"
+    )
+    
+    orders_customers_all = pd.merge(
+        all_orders[["order_id", "customer_id"]],
+        customers_df[["customer_id", "customer_city", "customer_state"]],
+        on="customer_id"
+    )
+    
+    if orders_customers_delivered.empty:
+        st.warning("Tidak ada data untuk analisis kota.")
+    else:
+        # Filter negara bagian jika dipilih
+        if selected_state != "All":
+            orders_customers_delivered = orders_customers_delivered[orders_customers_delivered["customer_state"] == selected_state]
+            orders_customers_all = orders_customers_all[orders_customers_all["customer_state"] == selected_state]
+            st.subheader(f"Analisis untuk Negara Bagian: {selected_state}")
+        
+        # Hitung pesanan per kota untuk delivered dan total
+        delivered_city_orders = orders_customers_delivered.groupby("customer_city")["order_id"].count().reset_index()
+        delivered_city_orders.columns = ["city", "delivered_orders"]
+        
+        all_city_orders = orders_customers_all.groupby("customer_city")["order_id"].count().reset_index()
+        all_city_orders.columns = ["city", "total_orders"]
         
         # Gabungkan data
-        orders_customers = pd.merge(
-            orders_df[
-                (orders_df["order_status"] == "delivered") &
-                (orders_df["year"].between(year_range[0], year_range[1]))
-            ][["order_id", "customer_id"]],
-            customers_df[["customer_id", "customer_city", "customer_state"]],
-            on="customer_id"
+        city_comparison = pd.merge(delivered_city_orders, all_city_orders, on="city", how="outer").fillna(0)
+        city_comparison = city_comparison.sort_values("delivered_orders", ascending=False)
+        
+        # Visualisasi dengan overlay seperti di Google Colab
+        st.subheader("Perbandingan Pesanan Delivered vs Total Orders")
+        
+        fig2, ax = plt.subplots(figsize=(12, 6))
+        
+        # Plot untuk top 10 kota berdasarkan jumlah delivered orders
+        sns.barplot(
+            data=city_comparison.nlargest(10, "delivered_orders"),
+            x="delivered_orders",
+            y="city",
+            color="teal",
+            label="Delivered",
+            ax=ax
         )
         
-        if orders_customers.empty:
-            st.warning("Tidak ada data untuk analisis kota.")
+        sns.barplot(
+            data=city_comparison.nlargest(10, "delivered_orders"),
+            x="total_orders",
+            y="city",
+            color="red",
+            alpha=0.3,
+            label="Total Orders",
+            ax=ax
+        )
+        
+        ax.set_title("Perbandingan Total Pesanan vs Delivered per Kota", pad=20)
+        ax.set_xlabel("Jumlah Pesanan")
+        ax.set_ylabel("Kota")
+        ax.legend()
+        
+        st.pyplot(fig2)
+        
+        # Tambahkan insight
+        st.write("### Insight:")
+        top_city = city_comparison.iloc[0]["city"]
+        top_delivery_rate = (city_comparison.iloc[0]["delivered_orders"] / city_comparison.iloc[0]["total_orders"]) * 100 if city_comparison.iloc[0]["total_orders"] > 0 else 0
+        
+        st.write(f"- {top_city} adalah kota dengan jumlah pesanan terkirim terbanyak dengan tingkat keberhasilan pengiriman {top_delivery_rate:.1f}%.")
+        
+        # Problem cities (rendah rasio delivered/total)
+        city_comparison["delivery_rate"] = (city_comparison["delivered_orders"] / city_comparison["total_orders"] * 100).fillna(0)
+        problem_cities = city_comparison[city_comparison["total_orders"] > 10].nsmallest(3, "delivery_rate")
+        
+        if not problem_cities.empty:
+            st.write("- Kota dengan tingkat keberhasilan pengiriman terendah:")
+            for _, city in problem_cities.iterrows():
+                st.write(f"  • {city['city']}: {city['delivery_rate']:.1f}% ({int(city['delivered_orders'])} dari {int(city['total_orders'])} pesanan)")
+        
+        # Tambahkan peta distribusi yang sudah ada sebelumnya
+        st.subheader("Peta Distribusi")
+        state_orders = orders_customers_delivered.groupby("customer_state")["order_id"].count().reset_index()
+        state_orders.columns = ["state", "orders"]
+        
+        if not state_orders.empty:
+            fig3 = px.choropleth(
+                state_orders,
+                locations="state",
+                locationmode="ISO-3",
+                color="orders",
+                scope="south america",
+                color_continuous_scale="Blues",
+                labels={'orders':'Pesanan'},
+                hover_name="state",
+                hover_data=["orders"]
+            )
+            fig3.update_layout(height=600)
+            st.plotly_chart(fig3, use_container_width=True)
         else:
-            # Filter negara bagian jika dipilih
-            if selected_state != "All":
-                orders_customers = orders_customers[orders_customers["customer_state"] == selected_state]
-                st.subheader(f"Analisis untuk Negara Bagian: {selected_state}")
-            
-            # Hitung pesanan per kota
-            city_orders = orders_customers.groupby(["customer_city", "customer_state"])["order_id"].count().reset_index()
-            city_orders.columns = ["city", "state", "orders"]
-            city_orders_sorted = city_orders.sort_values("orders", ascending=False)
-            city_orders_filtered = city_orders_sorted[city_orders_sorted["orders"] > 0]
-            
-            # Visualisasi Best & Worst Cities
-            st.subheader("Kinerja Kota")
-            
-            fig2, ax = plt.subplots(nrows=1, ncols=2, figsize=(24, 10))
-            colors = ["#1f77b4", "#d3d3d3", "#d3d3d3", "#d3d3d3", "#d3d3d3"]
-            
-            # Plot Top Cities
-            sns.barplot(
-                x="orders", 
-                y="city", 
-                data=city_orders_filtered.head(5),
-                palette=colors,
-                ax=ax[0]
-            )
-            ax[0].set_title(f"Top 5 Kota", fontsize=16)
-            ax[0].set_xlabel("Jumlah Pesanan", fontsize=12)
-            ax[0].set_ylabel("")
-            
-            # Plot Bottom Cities
-            sns.barplot(
-                x="orders", 
-                y="city", 
-                data=city_orders_filtered.tail(5),
-                palette=colors[::-1],
-                ax=ax[1]
-            )
-            ax[1].set_title(f"Bottom 5 Kota", fontsize=16)
-            ax[1].set_xlabel("Jumlah Pesanan", fontsize=12)
-            ax[1].set_ylabel("")
-            ax[1].invert_xaxis()
-            ax[1].yaxis.tick_right()
-            
-            plt.tight_layout()
-            st.pyplot(fig2)
-            
-            # Peta Distribusi
-            st.subheader("Peta Distribusi")
-            state_orders = city_orders.groupby("state")["orders"].sum().reset_index()
-            
-            if not state_orders.empty:
-                fig3 = px.choropleth(
-                    state_orders,
-                    locations="state",
-                    locationmode="ISO-3",
-                    color="orders",
-                    scope="south america",
-                    color_continuous_scale="Blues",
-                    labels={'orders':'Pesanan'},
-                    hover_name="state",
-                    hover_data=["orders"]
-                )
-                fig3.update_layout(height=600)
-                st.plotly_chart(fig3, use_container_width=True)
-            else:
-                st.warning("Tidak ada data untuk ditampilkan dengan filter saat ini")
+            st.warning("Tidak ada data untuk ditampilkan dengan filter saat ini")
 
     # Catatan Kaki
     st.caption("""
